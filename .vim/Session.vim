@@ -14,12 +14,15 @@ if &shortmess =~ 'A'
 else
   set shortmess=aoO
 endif
-badd +0 Momentum.c
+badd +123 Momentum.c
+badd +20 Momentum.h
+badd +94 /usr/local/include/X11/Xlib.h
 argglobal
 %argdel
 $argadd Momentum.c
 edit Momentum.c
 argglobal
+balt /usr/local/include/X11/Xlib.h
 setlocal fdm=manual
 setlocal fde=0
 setlocal fmr={{{,}}}
@@ -30,12 +33,12 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 86 - ((12 * winheight(0) + 18) / 37)
+let s:l = 113 - ((8 * winheight(0) + 18) / 37)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 86
-normal! 07|
+keepjumps 113
+normal! 017|
 tabnext 1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0
   silent exe 'bwipe ' . s:wipebuf
@@ -48,7 +51,6 @@ if filereadable(s:sx)
   exe "source " . fnameescape(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
-nohlsearch
 doautoall SessionLoadPost
 unlet SessionLoad
 " vim: set ft=vim :

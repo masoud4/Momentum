@@ -1,6 +1,5 @@
 CC = clang
 SRC = Momentum.c
-SRCBar = MoonBar.c
 PKG =  pkg-config --cflags --libs x11 xft xinerama
 DIS = -o MomentumWm
 install:
