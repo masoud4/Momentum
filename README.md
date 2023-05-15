@@ -8,7 +8,8 @@ bash
 Copy
 git clone https://github.com/masoud4/Momemum
 cd Momentum
-make build
+make install
+
 
 ## Usage
 To start Momentum, run the momentum command from a terminal or use the desktop entry created during installation.
