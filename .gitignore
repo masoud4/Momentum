@@ -1,0 +1,10 @@
+ .ccls-cache
+ .clangd
+ .git
+ .gitignore
+ .vim
+ MomentumWm
+ compile_commands.json
+ startServer
+ xinitrc
+

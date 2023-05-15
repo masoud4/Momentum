@@ -17,7 +17,7 @@
 #include <X11/XKBlib.h>
 #define LENGTH(x) (sizeof(x) / sizeof(*(x)))
 #define CLEANMASK(mask) ((mask) & ~(numlockmask | LockMask))
-#define MAXMONITOR 9
+#define MAXMONITOR 10
 #define MAXARG 10
 #define  MAXLENGHT 1024
 #define GETCURRENTWINDOW(Index) monitors[Index].current->window
@@ -39,7 +39,7 @@ typedef struct{
 struct Windows{
   int identefire;
   int x,y,width,height,oldx,oldy,oldwidth,oldheight;
-  int window;
+  Window window;
   struct Windows *last;
 };
 
@@ -69,10 +69,11 @@ void Unframe(XUnmapEvent *ev);
 void setFocus(XEvent *e);
 void justprint(XEvent *e) {}
 void Onkey(XEvent *e);
-bool updateCurrentWindow(int window, int Index);
-bool windowExist(int window, int Index) ;
-void upWindow(int window);
-struct Windows* getWindow(int window, int Index);
+bool updateCurrentWindow(Window window, int Index);
+bool windowExist(Window window, int Index) ;
+void upWindow(Window window);
+struct Windows* getWindow(Window window, int Index);
+void run(void);
 char(*monitorsTags[MAXMONITOR+1]) = {
     [1] = "", [2] = "", [3] = "", [4] = "", [5] = "",
     [6] = "", [7] = "", [8] = "", [9] = "", [0] = ""};
@@ -162,7 +163,7 @@ static Key keys[] = {
     {Mod4Mask | ShiftMask, XK_8, MoveToMonitor, {.i = 8}},
     {Mod4Mask | ShiftMask, XK_9, MoveToMonitor, {.i = 9}},
     {Mod4Mask | ShiftMask, XK_0, MoveToMonitor, {.i = 0}},
- //   {0, XK_F4, KillWindow, {}},
+    {0, XK_F4, getWindowsData, {}},
 };
 char(*errors[BadImplementation + 1]) = {
     [Success] = "everything's okay ",
@@ -184,7 +185,6 @@ char(*errors[BadImplementation + 1]) = {
     [BadLength] = "Request length incorrect ",
     [BadImplementation] = "server is defective ",
 };
-/*
 void (*events[LASTEvent])(XEvent *e) = {
     [ButtonPress] = justprint,
     [ClientMessage] = justprint,
@@ -201,9 +201,9 @@ void (*events[LASTEvent])(XEvent *e) = {
     [PropertyNotify] = justprint,
     [UnmapNotify] = OnUnmapNotify,
 };
-*/
+
 Display *display;
 Window Root;
-int MonitorIndex = 1;
+int MonitorIndex = 1 ;
 int screen;
 static unsigned int numlockmask;
