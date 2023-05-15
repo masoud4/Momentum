@@ -14,12 +14,15 @@ if &shortmess =~ 'A'
 else
   set shortmess=aoO
 endif
-badd +0 .gitignore
+badd +5 README.md
+badd +1 Momentum.c
+badd +131 Momentum.h
 argglobal
 %argdel
-$argadd .gitignore
-edit .gitignore
+$argadd README.md
+edit Momentum.h
 argglobal
+balt README.md
 setlocal fdm=manual
 setlocal fde=0
 setlocal fmr={{{,}}}
@@ -30,12 +33,12 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 1 - ((0 * winheight(0) + 19) / 39)
+let s:l = 121 - ((9 * winheight(0) + 19) / 39)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 1
-normal! 02|
+keepjumps 121
+normal! 020|
 tabnext 1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0
   silent exe 'bwipe ' . s:wipebuf

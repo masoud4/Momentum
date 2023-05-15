@@ -118,7 +118,7 @@ char(*app[maxprogram][MAXARG]) = {
     [editor] = {"gnome-terminal",
                 " --window "
                 " -- ",
-                "nvim", NULL},
+                "vim", NULL},
     [screenshot] = {"printscreen", NULL},
     [record_screen] = {"recordAllfeature.sh", NULL},
     [playmusic] = {"mplayer", "-shuffle", "-playlist",
