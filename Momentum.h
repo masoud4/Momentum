@@ -163,7 +163,6 @@ static Key keys[] = {
     {Mod4Mask | ShiftMask, XK_8, MoveToMonitor, {.i = 8}},
     {Mod4Mask | ShiftMask, XK_9, MoveToMonitor, {.i = 9}},
     {Mod4Mask | ShiftMask, XK_0, MoveToMonitor, {.i = 0}},
-    {0, XK_F4, getWindowsData, {}},
 };
 char(*errors[BadImplementation + 1]) = {
     [Success] = "everything's okay ",

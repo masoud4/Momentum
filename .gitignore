@@ -1,10 +1,8 @@
- .ccls-cache
- .clangd
- .git
- .gitignore
- .vim
- MomentumWm
- compile_commands.json
- startServer
- xinitrc
-
+.ccls-cache/
+.clangd/
+.git/
+.vim/
+MomentumWm
+compile_commands.json
+startServer
+xinitrc
