@@ -4,11 +4,9 @@ Momentum is a lightweight and customizable window manager for learning how to de
 ## Installation
 To install Momentum, clone the repository and run the install script:
 
-bash
-Copy
-git clone https://github.com/masoud4/Momemum
-cd Momentum
-make install
+    * git clone https://github.com/masoud4/Momemum
+    * cd Momentum
+    * make install
 
 
 ## Usage
@@ -19,13 +17,13 @@ To start Momentum, run the momentum command from a terminal or use the desktop e
 ## Keybindings
 Momentum comes with a default set of keybindings that you can customize in the configuration file. Some of the most commonly used keybindings are:
 
-* Super + R: launch a terminal
-* Super + E: launch a file manager
-* Super + P: launch dmenu_run
-* Super + Space: toggle between tiling and floating mode
-* Super + Tab: switch to the next window
-* Super + Numbers: switch to the {Number} workspace
-* Super + Shift + Numbers: move window to the {Number} workspace
+    * Super + R: launch a terminal
+    * Super + E: launch a file manager
+    * Super + P: launch dmenu_run
+    * Super + Space: toggle between tiling and floating mode
+    * Super + Tab: switch to the next window
+    * Super + Numbers: switch to the {Number} workspace
+    * Super + Shift + Numbers: move window to the {Number} workspace
 
 ## License
 Momentum is licensed under the MIT License. See the LICENSE file for details.
