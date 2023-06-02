@@ -43,18 +43,28 @@ struct Windows{
   struct Windows *last;
 };
 
+struct panel{
+  Window window;
+  int position; // 0 means top  1,2,3 means right, button, left 
+  int height,width;
+}panel;
+
 struct Monitor{
   char **name;
   struct Windows *windows;
   struct Windows *current;
 };
 
-
+typedef struct {
+    Atom atom;
+    void (*handler)(XEvent*);
+} EventMapping;
 
 void execute(const Arg *arg);
 void getWindowsData();
 void SwitchWindows();
 void FullScreen();
+void Maximize();
 void SwitchMonitor(const Arg *arg);
 void MoveToMonitor(const Arg *arg);
 void KillWindow();
@@ -65,15 +75,29 @@ bool initRootWidow(void);
 void OnMapRequest(XEvent *e);
 void Frame(Window window);
 void OnUnmapNotify(XEvent *e);
+void OnPropertyNotify(XEvent *e);
+
 void Unframe(XUnmapEvent *ev);
 void setFocus(XEvent *e);
-void justprint(XEvent *e) {}
+void justprint(XEvent *e);
 void Onkey(XEvent *e);
 bool updateCurrentWindow(Window window, int Index);
 bool windowExist(Window window, int Index) ;
 void upWindow(Window window);
+void setWindowProperty(Display *display, Window window, const char *propertyName, const char *propertyType, void *propertyValue, int format, int numItems); 
+void getWindowProperty(Display *display, Window window, const char *propertyName, char *propertyType, void **propertyValue, unsigned long *numItems) ;
+
+bool getWindowAtom(Window window,char *AtomName);
+bool getWindow_NET_WM_Atom(Window window,char *AtomName);
+bool getWindow_EWMH_Atom(Window window,char *AtomName);
 struct Windows* getWindow(Window window, int Index);
 void run(void);
+bool isStickWindows(Window window);
+bool isAboveWindows(Window window);
+bool isPanel(Window window);
+void updatePanelInfo(XEvent *e);
+
+
 char(*monitorsTags[MAXMONITOR+1]) = {
     [1] = "", [2] = "", [3] = "", [4] = "", [5] = "",
     [6] = "", [7] = "", [8] = "", [9] = "", [0] = ""};
@@ -142,7 +166,7 @@ static Key keys[] = {
     {0, XK_F3, execute, {.v = &app[volup]}},
     {Mod1Mask, XK_l, getWindowsData, {}},
     {Mod1Mask, XK_Tab, SwitchWindows, {}},
-    {Mod1Mask, XK_f, FullScreen, {}},
+    {Mod1Mask, XK_f, Maximize, {}},
     {Mod4Mask, XK_0, SwitchMonitor, {.i = 0}},
     {Mod4Mask, XK_1, SwitchMonitor, {.i = 1}},
     {Mod4Mask, XK_2, SwitchMonitor, {.i = 2}},
@@ -197,9 +221,11 @@ void (*events[LASTEvent])(XEvent *e) = {
     [MappingNotify] = justprint,
     [MapRequest] = OnMapRequest,
     [MotionNotify] = justprint,
-    [PropertyNotify] = justprint,
+    [PropertyNotify] = OnPropertyNotify,
     [UnmapNotify] = OnUnmapNotify,
 };
+
+
 
 Display *display;
 Window Root;
