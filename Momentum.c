@@ -4,6 +4,7 @@
 #include "X11/Xproto.h"
 #include <stdio.h>
 #include <string.h>
+#include <X11/extensions/Xrandr.h>
 
 struct Monitor monitors[MAXMONITOR];
 
@@ -71,9 +72,10 @@ void getWindowsData()
 {
   for(int i = 0 ; i<= MAXMONITOR ; i++){
     Window current = monitors[i].current != (struct Windows*)NULL ? monitors[i].current->window : (Window)-1;
+    if(current == None) return;
     printf("%d : { current : %lu,  windows :",i,current);
     if(monitors[i].current->window != (Window)NULL){
-      for(struct Windows *windows = monitors[i].windows ; windows && windows->window ; windows = windows->last){
+      for(struct Windows *windows = monitors[i].windows ; windows && windows->window && windows->last ; windows = windows->last){
 	printf("   %lu : %d",windows->window,windows->identefire);
       }
     }
@@ -128,7 +130,6 @@ bool modifyMonitor(Window window,int Index,int NextIndex){
   if(Index < 0 || Index > MAXMONITOR || NextIndex < 0 || NextIndex > MAXMONITOR) return false;
 
   struct Windows **tmp;
-  struct Windows **next;
 
   for(tmp = &monitors[Index].windows ;tmp && (*tmp)->window && (*tmp)->last; tmp = &(*tmp)->last){
     if(window == (*tmp)->window){
@@ -164,6 +165,14 @@ bool initRootWidow(void)
     return False;
   }
   Root = DefaultRootWindow(display);
+  XTextProperty wmName;
+  const char *wmNameString = "i3";
+  if (XStringListToTextProperty((char **)&wmNameString, 1, &wmName) == 0) {
+    fprintf(stderr, "Failed to set window manager name.\n");
+    return 1;
+  }
+  XSetWMName(display, Root, &wmName);
+
   screen = DefaultScreen(display);
   XSetErrorHandler(OnXError);
   XGrabServer(display);
@@ -229,10 +238,11 @@ void SwitchWindows()
 void upWindow(Window window) {
   if (window == Root || window == None) return ;
   XWindowChanges wa;
-  struct Windows *windows = getWindow(window, MonitorIndex);
 
+  struct Windows *windows = getWindow(window, MonitorIndex);
   if (windows == NULL) return;
 
+  XMapWindow(display, window);
   wa.x = windows->x;
   wa.y = windows->y;
   wa.width = windows->width;
@@ -241,6 +251,9 @@ void upWindow(Window window) {
   XRaiseWindow(display, window);
   XSetInputFocus(display, window, RevertToPointerRoot, CurrentTime);
   updateCurrentWindow(window, MonitorIndex);
+  Atom atom_above = XInternAtom(display, "_NET_WM_STATE_ABOVE", False);
+  setWindowProperty(display, window, "_NET_WM_STATE", atom_above);
+
 }
 
 bool windowExist(Window window, int Index) 
@@ -267,13 +280,15 @@ struct Windows* getWindow(Window window, int Index)
 
 void FullScreen()
 {
-
   int current = GETCURRENTWINDOW(MonitorIndex);
+  if(current == panel.window) return ;
   int screen = DefaultScreen(display);
   int max_width = DisplayWidth(display, screen);
   int max_height = DisplayHeight(display, screen);
 
   struct Windows *windows = getNextWindow(current, MonitorIndex);
+  if(windows == NULL) return;
+
   XMoveResizeWindow(display, current, 0, 0, max_width, max_height);
 
   Atom atom_fullscreen = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
@@ -282,12 +297,18 @@ void FullScreen()
 		    XA_ATOM, 32, PropModeReplace, (unsigned char *)&atom_fullscreen, 1);
   }
 
+  windows->width = max_width;
+  windows->height = max_height;
+  windows->x = 0;
+  windows->y = 0;
+
   XSync(display, False);
 }
 
 void Maximize()
 {
   int current = GETCURRENTWINDOW(MonitorIndex);
+  if(current == panel.window) return ;
   int screen = DefaultScreen(display);
   int max_width = DisplayWidth(display, screen);
   int max_height = DisplayHeight(display, screen)-panel.height;
@@ -300,7 +321,9 @@ void Maximize()
 		    XA_ATOM, 32, PropModeReplace, (unsigned char *)&atom_fullscreen, 1);
   }
 
-  struct Windows *windows = getNextWindow(current, MonitorIndex);
+  struct Windows *windows = getWindow(current, MonitorIndex);
+  if(windows == NULL) return;
+
   windows->width = max_width;
   windows->height = max_height;
   windows->x = x;
@@ -336,7 +359,6 @@ void SwitchMonitor(const Arg *arg)
   }
   // Map all clients in the new workspace and bring theme to the top
   for (struct Windows *c = n->windows; c && c->window ; c = c->last) {
-    XMapWindow(display, c->window);
     upWindow(c->window);
   }
 
@@ -365,9 +387,34 @@ void MoveToMonitor(const Arg *arg){
 }
 void KillWindow()
 {
-  Window window = GETCURRENTWINDOW(MonitorIndex);
+    Window w = GETCURRENTWINDOW(MonitorIndex);
 
+    if (w == Root || w == NULL) {
+      return ;
+    }
+
+    // Unmap the client window first
+    XUnmapWindow(display, w);
+
+    // Reparent the client window back to the root window
+    XReparentWindow(display, w, Root, 0, 0);
+
+    // Remove the client window from the save set
+    XRemoveFromSaveSet(display, w);
+
+    // Remove the client from the current workspace and free its memory
+    removeWindow(w,MonitorIndex);
+
+    // Synchronize with the X server to ensure all changes take effect
+    XSync(display, False);
+
+    // Destroy the frame window
+    if (w) {
+        XDestroyWindow(display, w);
+
+    }
 }
+
 void run()
 {
   while (True) {
@@ -404,7 +451,9 @@ void setFocus(XEvent *e) {
 
 void OnUnmapNotify(XEvent *e) {
   XUnmapEvent *ev = &e->xunmap;
-
+  if (ev->window == Root || ev->window == None) {
+    return;
+  }
   bool exist = getWindow(ev->window, MonitorIndex) == NULL;
   if (!exist) {
     Unframe(ev);
@@ -431,12 +480,13 @@ void OnPropertyNotify(XEvent *e)
     }
   }
   updatePanelInfo(e);
-  
+
 }
 
 void Unframe(XUnmapEvent *ev) {
   XSync(display,False);
   struct Windows *tmp = getNextWindow(ev->window, MonitorIndex);
+  if(tmp == NULL) return;
   if (tmp->window) {
     updateCurrentWindow(tmp->window, MonitorIndex);
   } else {
@@ -448,6 +498,9 @@ void Unframe(XUnmapEvent *ev) {
 void OnMapRequest(XEvent *e) {
   static XWindowAttributes wa;
   XMapRequestEvent *ev = &e->xmaprequest;
+  if (ev->window == Root || ev->window == None) {
+    return;
+  }
   if (!XGetWindowAttributes(display, ev->window, &wa)) {
     return;
   }
@@ -455,8 +508,25 @@ void OnMapRequest(XEvent *e) {
     return;
   }
   Frame(ev->window);
-  XMapWindow(display, ev->window);
 }
+
+void OnDestroyNotify(XEvent *event) {
+  XDestroyWindowEvent *destroyEvent = &event->xdestroywindow;
+  if (destroyEvent->window == Root || destroyEvent->window == None) {
+    return;
+  }
+
+  printf("Window with ID %lu is being destroyed.\n", destroyEvent->window);
+  // Perform any cleanup or necessary actions here
+  // ...
+
+  // Reparent the window to the root window
+  XReparentWindow(display, destroyEvent->window, Root, 0, 0);
+
+  // Map the reparented window
+  XMapWindow(display, destroyEvent->window);
+}
+
 
 void Frame(Window w) {
   if (w == Root || w == 0) {
@@ -496,13 +566,45 @@ void Frame(Window w) {
   updateCurrentWindow(w, MonitorIndex);
   XRaiseWindow(display, w);
   XSetInputFocus(display, w, RevertToPointerRoot, CurrentTime);
+  // Set the _NET_WM_ICON property
+  unsigned char iconData[] = {
+    // Icon pixel data
+    0x00, 0x00, 0x00, 0x00, // Example pixel values
+    0xFF, 0xFF, 0xFF, 0xFF, // Example pixel values
+    // ... more pixel values
+  };
+
+  unsigned int iconWidth = 32;
+  unsigned int iconHeight = 32;
+  Pixmap iconPixmap = createPixmap(display, RootWindow(display, DefaultScreen(display)), iconWidth, iconHeight, iconData);
+  XChangeProperty(display, w, XInternAtom(display, "_NET_WM_ICON", False), XA_CARDINAL, 32, PropModeReplace, iconData, sizeof(iconData));
+
+  setMotifWMHints(display, w, motifHints, sizeof(motifHints) / sizeof(motifHints[0]));
+
+  Atom atom_type = XInternAtom(display, "_NET_WM_WINDOW_TYPE_NORMAL", False);
+  setWindowProperty(display, w, "_NET_WM_WINDOW_TYPE", atom_type);
+}
+void setMotifWMHints(Display* display, Window window, unsigned long* hints, int numHints) {
+  Atom motifHintsAtom = XInternAtom(display, "_MOTIF_WM_HINTS", False);
+  XChangeProperty(display, window, motifHintsAtom, motifHintsAtom, 32, PropModeReplace, (unsigned char*)hints, numHints);
 }
 
-void setWindowProperty(Display *display, Window window, const char *propertyName, const char *propertyType, void *propertyValue, int format, int numItems) {
+void setWindowProperty(Display *display, Window window, const char *propertyName, Atom propertyValue) {
   Atom atom_property = XInternAtom(display, propertyName, False);
-  Atom atom_type = XInternAtom(display, propertyType, False);
+  XChangeProperty(display, window, atom_property, XA_ATOM, 32, PropModeReplace, (unsigned char *)&propertyValue, 1);
+  XSync(display, False);
+}
 
-  XChangeProperty(display, window, atom_property, atom_type, format, PropModeReplace, (unsigned char *)propertyValue, numItems);
+Pixmap createPixmap(Display *display, Window root, unsigned int width, unsigned int height, unsigned char *data) {
+  Pixmap pixmap;
+  Visual *visual;
+  int depth;
+
+  visual = DefaultVisual(display, DefaultScreen(display));
+  depth = DefaultDepth(display, DefaultScreen(display));
+
+  pixmap = XCreatePixmapFromBitmapData(display, root, (char*)data, width, height, 0, 1, depth);
+  return pixmap;
 }
 
 void getWindowProperty(Display *display, Window window, const char *propertyName, char *propertyType, void **propertyValue, unsigned long *numItems) {
