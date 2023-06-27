@@ -1,5 +1,6 @@
 .ccls-cache/
 .clangd/
+.cache/
 .git/
 .vim/
 MomentumWm
