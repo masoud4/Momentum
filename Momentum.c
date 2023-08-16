@@ -8,7 +8,7 @@
 
 struct Monitor monitors[MAXMONITOR];
 
-//_NET_WM_STATE_MODAL // i have no idea what it is!
+//_NET_WM_STATE_MODAL
 //_NET_WM_STATE_STICKY
 //_NET_WM_STATE_MAXIMIZED_VERT
 //_NET_WM_STATE_MAXIMIZED_HORZ
@@ -176,16 +176,17 @@ bool initRootWidow(void) {
     fprintf(stderr, "Failed to open X display\n");
     return False;
   }
-  Root = DefaultRootWindow(display);
   XTextProperty wmName;
-  const char *wmNameString = "i3";
+  const char *wmNameString = "Momentum";
   if (XStringListToTextProperty((char **)&wmNameString, 1, &wmName) == 0) {
     fprintf(stderr, "Failed to set window manager name.\n");
     return 1;
   }
+
+  Screen *screen = XScreenOfDisplay(display, 0);
+  Root = XRootWindowOfScreen(screen);
   XSetWMName(display, Root, &wmName);
 
-  screen = DefaultScreen(display);
   XSetErrorHandler(OnXError);
   XGrabServer(display);
   XSync(display, False);
@@ -352,6 +353,40 @@ void Maximize() {
   XSync(display, False);
 }
 
+/**
+ * -------[.......screen.......]
+ * mode 0 window|rest of screen
+ * mode 1 rest of screen|window
+ * mode 2 re arrange all screen alongside horizontally
+ * mode 3 re arrange all screen alongside vertically
+ * mode 4 re arrange all screen tiling mode
+ */
+void Arrange(const Arg *arg) {
+  Window current = GETCURRENTWINDOW(MonitorIndex);
+  if (current == Root || current == None) {
+    return;
+  }
+  int screen = DefaultScreen(display);
+  int width = DisplayWidth(display, screen);
+  int height = DisplayHeight(display, screen) - panel.height;
+
+  if (arg->i == 0) {
+    monitors[MonitorIndex].current->width = width/2;
+    monitors[MonitorIndex].current->height = height;
+    monitors[MonitorIndex].current->x = 0;
+    monitors[MonitorIndex].current->y = panel.height;
+  }
+
+  if (arg->i == 1) {
+    monitors[MonitorIndex].current->width = width/2;
+    monitors[MonitorIndex].current->height = height;
+    monitors[MonitorIndex].current->x = width/2;
+    monitors[MonitorIndex].current->y = panel.height;
+  }
+
+  upWindow(current);
+
+}
 void SwitchMonitor(const Arg *arg) {
   if (arg->i == MonitorIndex || arg->i < 0 || arg->i > MAXMONITOR) {
     return;
@@ -427,7 +462,9 @@ void KillWindow() {
   if (w == Root || w == None) {
     return;
   }
+  XGrabServer(display);
 
+  XKillClient(display, w);
   // Unmap the client window first
   XUnmapWindow(display, w);
 
@@ -447,6 +484,7 @@ void KillWindow() {
   if (w) {
     XDestroyWindow(display, w);
   }
+  XUngrabServer(display);
 }
 
 void run() {

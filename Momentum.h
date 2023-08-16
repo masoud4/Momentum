@@ -93,6 +93,7 @@ void Maximize();
 void SwitchMonitor(const Arg *arg);
 void MoveToMonitor(const Arg *arg);
 void KillWindow();
+void Arrange(const Arg *arg);
 int OnXError(Display *display, XErrorEvent *e);
 void grabkeys(void);
 int sendevent(Window w, Atom proto);
@@ -155,6 +156,8 @@ enum programs {
   playmusic,
   killmusic,
   getvolume,
+  search,
+
   maxprogram
 };
 char(*app[maxprogram][MAXARG]) = {
@@ -175,16 +178,19 @@ char(*app[maxprogram][MAXARG]) = {
     [voldown] = {"mixer", "-S", "vol", "-2", NULL},
     [changebackgraound] = {"fbsetbg", "-r", "/mnt/other/Wallpaper", NULL},
     [browser] = {"firefox", NULL},
-    [editor] = {"gnome-terminal",
-                " --window "
-                " -- ",
-                "vim", NULL},
-    [screenshot] = {"printscreen", NULL},
+    [editor] = {"xfce4-terminal", "-e", "nvim", NULL},
+    [screenshot] = {"Naqsh", NULL},
     [record_screen] = {"recordAllfeature.sh", NULL},
     [playmusic] = {"mplayer", "-shuffle", "-playlist",
-                   "/usr/home/Masoud/Desktop/Music/dream/playlist", NULL},
+                   "/usr/home/Masoud/Desktop/Music/programing/playlist.txt",
+                   NULL},
     [killmusic] = {"killall", "mplayer", NULL},
     [getvolume] = {"mixer", "vol", NULL},
+    [search] = {"xfce4-terminal", "-e",
+                "fzf --preview \"bat --color=always --style=numbers "
+                "--line-range=:500 {}\"",
+                NULL},
+
 };
 
 static Key keys[] = {
@@ -205,6 +211,9 @@ static Key keys[] = {
     {Mod1Mask, XK_f, Maximize, {}},
     {Mod1Mask, XK_F11, FullScreen, {}},
     {Mod1Mask, XK_F4, KillWindow, {}},
+    {ControlMask, XK_slash, execute, {.v = &app[search]}},
+    {Mod4Mask, XK_g, Arrange, {.i = 0}},
+    {Mod4Mask, XK_h, Arrange, {.i = 1}},
     {Mod4Mask, XK_0, SwitchMonitor, {.i = 0}},
     {Mod4Mask, XK_1, SwitchMonitor, {.i = 1}},
     {Mod4Mask, XK_2, SwitchMonitor, {.i = 2}},
@@ -252,7 +261,7 @@ void (*events[LASTEvent])(XEvent *e) = {
     [ButtonPress] = justprint,
     [ClientMessage] = justprint,
     [ConfigureRequest] = onConfigureRequest,
-    [ConfigureNotify] = onConfigureNotify,
+    [ConfigureNotify] = justprint,
     [MapNotify] = OnmapNotify,
     [DestroyNotify] = OnDestroyNotify,
     [EnterNotify] = justprint,

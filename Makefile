@@ -1,6 +1,6 @@
 CC = clang
 SRC = Momentum.c
-PKG =  pkg-config --cflags --libs x11 xft xinerama xfixes gl glx
+PKG =  pkg-config --cflags --libs x11 xft xinerama xfixes gl glx xext
 DIS = -o MomentumWm
 install:
 		${CC} -Wall -Wextra ${SRC} -lm `${PKG}` ${DIS}
