@@ -2,8 +2,9 @@ CC = clang
 SRC = Momentum.c
 PKG =  pkg-config --cflags --libs x11 xft xinerama xfixes gl glx xext
 DIS = -o MomentumWm
+EXTERA =-Wextra -Wall
 install:
-		${CC} -Wall -Wextra ${SRC} -lm `${PKG}` ${DIS}
+		${CC}  ${SRC} -lm `${PKG}` ${DIS}
 run:
 	bash ./startServer
 

@@ -25,6 +25,15 @@
 #define GETCURRENTWINDOW(Index) monitors[Index].current->window
 #define SETCURRENTWINDOWS(Index, windows) monitors[Index].current = windows
 
+
+#define M_LOG true
+#if M_LOG 
+#define _Xdebug  1
+#define log(msg,window) printf("[ %s ] \t,%lu\n", msg,window)
+#else
+#define log(msg,window) 
+#endif //M_LOG
+
 #define MWM_HINTS_FLAGS_FIELD 0
 #define MWM_HINTS_DECORATIONS_FIELD 2
 
@@ -78,6 +87,7 @@ struct Monitor {
   char **name;
   struct Windows *windows;
   struct Windows *current;
+  int vericalEdge;
 };
 
 typedef struct {
@@ -104,17 +114,32 @@ void OnUnmapNotify(XEvent *e);
 void OnmapNotify(XEvent *e);
 void OnPropertyNotify(XEvent *e);
 void OnDestroyNotify(XEvent *e);
+void OnConfigureNotify(XEvent *e);
+
+void OnMappingNotify(XEvent *e);
+
+
 
 void Unframe(XUnmapEvent *ev);
 void setFocus(XEvent *e);
 void justprint(XEvent *e);
-void onConfigureNotify(XEvent *e);
 void onConfigureRequest(XEvent *e);
 void onMotionNotify(XEvent *e);
 void Onkey(XEvent *e);
 bool updateCurrentWindow(Window window, int Index);
 bool windowExist(Window window, int Index);
 void upWindow(Window window);
+
+void setWindowEvent(Window w);
+void setRootEvent();
+// TODO :this is just some idea
+// void resize(Window window);
+// void move(Window window);
+// tiling window support
+// lua integration for each parts. it could be good for feathure
+// void sendNotefication(Window window,char ** msg,int up);
+// create clickable {button menue labels textbox} 
+
 
 void setMotifWMHints(Display *display, Window window, unsigned long *hints,
                      int numHints);
@@ -258,21 +283,40 @@ char(*errors[BadImplementation + 1]) = {
 };
 
 void (*events[LASTEvent])(XEvent *e) = {
+    [CirculateNotify] = justprint,		
+    [CirculateRequest] = justprint,
+    [GenericEvent] = justprint,		
     [ButtonPress] = justprint,
+    [ButtonRelease] = justprint,
     [ClientMessage] = justprint,
+    [ColormapNotify] = justprint,
+    [ConfigureNotify] = OnConfigureNotify,
     [ConfigureRequest] = onConfigureRequest,
-    [ConfigureNotify] = justprint,
-    [MapNotify] = OnmapNotify,
+    [CreateNotify] = justprint,
     [DestroyNotify] = OnDestroyNotify,
     [EnterNotify] = justprint,
+    [LeaveNotify] = justprint,
     [Expose] = justprint,
-    [FocusIn] = setFocus,
+    [FocusIn] = justprint,
+    [FocusOut] = justprint,
+    [GraphicsExpose] = justprint,
+    [GravityNotify] = justprint,
+    [KeymapNotify] = justprint,
     [KeyPress] = Onkey,
-    [MappingNotify] = justprint,
+    [KeyRelease] = justprint,
+    [MapNotify] = OnmapNotify,
     [MapRequest] = OnMapRequest,
+    [MappingNotify] = OnMappingNotify,
     [MotionNotify] = onMotionNotify,
+    [NoExpose] = justprint,
     [PropertyNotify] = OnPropertyNotify,
+    [ReparentNotify] = justprint,
+    [ResizeRequest] = justprint,
+    [SelectionClear] = justprint,
+    [SelectionNotify] = justprint,
+    [SelectionRequest] = justprint,
     [UnmapNotify] = OnUnmapNotify,
+    [VisibilityNotify] = justprint,
 };
 
 Display *display;
