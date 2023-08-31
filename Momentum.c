@@ -25,10 +25,10 @@ struct Monitor monitors[MAXMONITOR];
 
 bool addWindow(Window window, int Index) {
   log("addWindow", window);
-  if (window == None)
+  if (window == None || window == Root)
     return false;
   if (Index < 0 || Index > MAXMONITOR)
-    window = Root;
+    return false;
   struct Windows *windows = malloc(sizeof(struct Windows));
   windows->last = monitors[Index].windows;
   windows->window = window;
@@ -75,7 +75,6 @@ void dummyClient(void) {
 
 void getWindowsData() {
   for (int i = 0; i < MAXMONITOR; i++) {
-
     Window current = monitors[i].current != (struct Windows *)NULL
                          ? monitors[i].current->window
                          : (Window)-1;
@@ -90,11 +89,11 @@ void getWindowsData() {
 
 bool updateCurrentWindow(Window window, int Index) {
   log("updateCurrentWindow", window);
-  if (window == None)
-    window = Root;
-  if (Index < 0 || Index > MAXMONITOR) {
-    Index = 0;
-  }
+  if (!window || window == Root)
+    return false;
+
+  if (Index < 0 || Index > MAXMONITOR)
+    return false;
 
   for (struct Windows *windows = monitors[Index].windows;
        windows && windows->window; windows = windows->last) {
@@ -205,7 +204,6 @@ bool initRootWidow(void) {
   XSetErrorHandler(OnXError);
   XGrabServer(display);
 
-
   setRootEvent();
 
   XUngrabServer(display);
@@ -277,9 +275,8 @@ void SwitchWindows() {
 
 void upWindow(Window window) {
   log("upWindow", window);
-
-  if (!window)
-    window = Root;
+  if (!window || window == Root)
+    return;
 
   XWindowChanges wa;
 
@@ -303,7 +300,7 @@ void upWindow(Window window) {
 bool windowExist(Window window, int Index) {
   log("windowExist", window);
 
-  if (window == 0) {
+  if (!window || window == Root) {
     return false;
   }
   XWindowAttributes attrs;
@@ -312,8 +309,8 @@ bool windowExist(Window window, int Index) {
 
 struct Windows *getWindow(Window window, int Index) {
 
-  if (!window) {
-    window = Root;
+  if (!window || window == Root) {
+    return None;
   }
 
   log("getWindow", window);
@@ -433,10 +430,13 @@ void SwitchMonitor(const Arg *arg) {
     log("switch to null monitor", (unsigned long)arg->i);
     return;
   }
+  printf("START \n");
+  getWindowsData();
 
   log("SwitchMonitor", (unsigned long)arg->i);
 
   setWorkspaceNumber(display, Root, arg->i);
+
   struct Monitor *d = &monitors[MonitorIndex];
   struct Monitor *n = &monitors[arg->i];
 
@@ -454,44 +454,50 @@ void SwitchMonitor(const Arg *arg) {
 
   // map panel
   if (panel.window != None) {
-    XMapWindow(display, panel.window);
-    upWindow(panel.window);
+    // XMapWindow(display, panel.window);
+    // upWindow(panel.window);
   }
 
   // Map all clients in the new workspace and bring theme to the top
   for (struct Windows *c = n->windows;
-       c && c->window && c->window != panel.window; c = c->last) {
-    XWindowChanges wa;
-    XMapWindow(display, c->window);
-    wa.x = c->x;
-    wa.y = c->y;
-    wa.width = c->width;
-    wa.height = c->height;
-    XConfigureWindow(display, c->window, CWX | CWY | CWWidth | CWHeight, &wa);
-
-    XSelectInput(display, c->window,
-                 EnterWindowMask | FocusChangeMask | PropertyChangeMask |
-                     StructureNotifyMask | PointerMotionMask);
-
-    XRaiseWindow(display, c->window);
-    XSetInputFocus(display, c->window, RevertToPointerRoot, CurrentTime);
-    updateCurrentWindow(c->window, MonitorIndex);
+       c && c->window && c->window != panel.window && c->window != Root;
+       c = c->last) {
+    setWindowEvent(c->window);
+    // XWindowChanges wa;
+    // XMapWindow(display, c->window);
+    // wa.x = c->x;
+    // wa.y = c->y;
+    // wa.width = c->width;
+    // wa.height = c->height;
+    // XConfigureWindow(display, c->window, CWX | CWY | CWWidth | CWHeight,
+    // &wa);
+    //
+    // XSelectInput(display, c->window,
+    //              EnterWindowMask | FocusChangeMask | PropertyChangeMask |
+    //                  StructureNotifyMask | PointerMotionMask);
+    //
+    // XRaiseWindow(display, c->window);
+    // XSetInputFocus(display, c->window, RevertToPointerRoot, CurrentTime);
+    // updateCurrentWindow(c->window, MonitorIndex);
     upWindow(c->window);
   }
 
   MonitorIndex = arg->i;
   // Enable the necessary events again
-  attr.event_mask = SubstructureRedirectMask | ButtonPressMask |
-                    SubstructureNotifyMask | PropertyChangeMask;
-  XChangeWindowAttributes(display, Root, CWEventMask, &attr);
+  setRootEvent();
+  // attr.event_mask = SubstructureRedirectMask | ButtonPressMask |
+  //                   SubstructureNotifyMask | PropertyChangeMask;
+  // XChangeWindowAttributes(display, Root, CWEventMask, &attr);
 
   // Bring the current client to the top
-  struct Windows *windows =
-      getWindow(GETCURRENTWINDOW(MonitorIndex), MonitorIndex);
-  if (windows != NULL) {
-    upWindow(windows->window);
-  }
-  setRootEvent();
+  // struct Windows *windows =
+  //     getWindow(GETCURRENTWINDOW(MonitorIndex), MonitorIndex);
+  // if (windows != NULL) {
+  //   upWindow(windows->window);
+  // }
+
+  printf("END \n");
+  getWindowsData();
   XSync(display, False);
 }
 
@@ -586,18 +592,18 @@ void OnConfigureNotify(XEvent *e) {
 
   log("OnConfigureNotify", configureEvent->window);
 
-  // if (configureEvent->window == Root || configureEvent->window == None) {
-  //   return;
-  // }
+  if (configureEvent->window == Root || configureEvent->window == None) {
+    return;
+  }
 
-  // XWindowChanges changes;
-  // changes.x = configureEvent->x;
-  // changes.y = configureEvent->y;
-  // changes.width = configureEvent->width;
-  // changes.height = configureEvent->height;
-  //
-  // XConfigureWindow(display, configureEvent->window,
-  //                  CWX | CWY | CWWidth | CWHeight, &changes);
+  XWindowChanges changes;
+  changes.x = configureEvent->x;
+  changes.y = configureEvent->y;
+  changes.width = configureEvent->width;
+  changes.height = configureEvent->height;
+
+  XConfigureWindow(display, configureEvent->window,
+                   CWX | CWY | CWWidth | CWHeight, &changes);
 }
 
 void onConfigureRequest(XEvent *e) {
@@ -697,12 +703,12 @@ void OnPropertyNotify(XEvent *e) {
 
 void Unframe(XUnmapEvent *ev) {
 
-  log("OnPropertyNotify", ev->window);
+  log("Unframe", ev->window);
 
   XSync(display, False);
   struct Windows *tmp = getNextWindow(ev->window, MonitorIndex);
   if (tmp == NULL)
-    updateCurrentWindow(Root, MonitorIndex);
+    return;
   if (tmp->window) {
     updateCurrentWindow(tmp->window, MonitorIndex);
   } else {
@@ -779,25 +785,24 @@ void OnMappingNotify(XEvent *e) {
 }
 
 void Frame(Window w) {
-  log("Frame ", w);
-
-  if (!w)
+  if (w == Root || w == 0) {
     return;
-
+  }
   int xpanel = 0;
   int ypanel = 0;
   XWindowAttributes x_window_attrs;
   XGetWindowAttributes(display, w, &x_window_attrs);
+  XSetWindowAttributes wa;
   int x, y, z, v;
   unsigned int mask;
   Window root_return, child_return;
   XQueryPointer(display, w, &root_return, &child_return, &z, &v, &x, &y, &mask);
-
-  setWindowEvent(w);
-
+  XSelectInput(display, w,
+               EnterWindowMask | FocusChangeMask | PropertyChangeMask |
+                   StructureNotifyMask);
   XAddToSaveSet(display, w);
+  XMapWindow(display, w);
   addWindow(w, MonitorIndex);
-
   if (panel.window != None) {
     xpanel = 0;
     ypanel = panel.height;
@@ -807,32 +812,43 @@ void Frame(Window w) {
   monitors[MonitorIndex].windows->y = ypanel;
   monitors[MonitorIndex].windows->width = x_window_attrs.width;
   monitors[MonitorIndex].windows->height = x_window_attrs.height;
+  upWindow(w);
+  wa.event_mask = SubstructureRedirectMask | SubstructureNotifyMask |
+                  ButtonPressMask | PointerMotionMask | EnterWindowMask |
+                  LeaveWindowMask | StructureNotifyMask | PropertyChangeMask;
+  XChangeWindowAttributes(display, Root, CWEventMask | CWCursor, &wa);
+  XSelectInput(display, Root, wa.event_mask);
+
+  updateCurrentWindow(w, MonitorIndex);
+  XRaiseWindow(display, w);
+  XSetInputFocus(display, w, RevertToPointerRoot, CurrentTime);
+  // Set the _NET_WM_ICON property
+  unsigned char iconData[] = {
+      // Icon pixel data
+      0x00, 0x00, 0x00, 0x00, // Example pixel values
+      0xFF, 0xFF, 0xFF, 0xFF, // Example pixel values
+                              // ... more pixel values
+  };
+
+  unsigned int iconWidth = 32;
+  unsigned int iconHeight = 32;
+  Pixmap iconPixmap =
+      createPixmap(display, RootWindow(display, DefaultScreen(display)),
+                   iconWidth, iconHeight, iconData);
+  XChangeProperty(display, w, XInternAtom(display, "_NET_WM_ICON", False),
+                  XA_CARDINAL, 32, PropModeReplace, iconData, sizeof(iconData));
 
   setMotifWMHints(display, w, motifHints,
                   sizeof(motifHints) / sizeof(motifHints[0]));
 
   Atom atom_type = XInternAtom(display, "_NET_WM_WINDOW_TYPE_NORMAL", False);
   setWindowProperty(display, w, "_NET_WM_WINDOW_TYPE", atom_type);
-
-  XSetInputFocus(display, w, RevertToPointerRoot, CurrentTime);
-
-  upWindow(w);
-  XSync(display, false);
+  log("Frame ", w);
 }
 
-void setWindowEvent(Window w) {
+void setWindowEvent(Window w) { XSelectInput(display, w, NORMAL_WINDOW_MASK); }
 
-  XSelectInput(display, w,
-               EnterWindowMask | LeaveWindowMask | PointerMotionHintMask |
-                   FocusChangeMask | PropertyChangeMask | PointerMotionMask);
-}
-void setRootEvent() {
-
-  XSelectInput(display, Root,
-               SubstructureRedirectMask | SubstructureNotifyMask |
-                   EnterWindowMask | FocusChangeMask | PropertyChangeMask |
-                   StructureNotifyMask | PointerMotionMask);
-}
+void setRootEvent() { XSelectInput(display, Root, ROOT_MASK); }
 
 void setMotifWMHints(Display *display, Window window, unsigned long *hints,
                      int numHints) {

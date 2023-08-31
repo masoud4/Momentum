@@ -25,14 +25,20 @@
 #define GETCURRENTWINDOW(Index) monitors[Index].current->window
 #define SETCURRENTWINDOWS(Index, windows) monitors[Index].current = windows
 
+#define ROOT_MASK SubstructureRedirectMask | SubstructureNotifyMask
+
+#define NORMAL_WINDOW_MASK                                                     \
+  EnterWindowMask | LeaveWindowMask | PointerMotionHintMask |                  \
+      FocusChangeMask | PropertyChangeMask | PointerMotionMask
+#define BUTTON_MASK SubstructureRedirectMask | SubstructureNotifyMask
 
 #define M_LOG true
-#if M_LOG 
-#define _Xdebug  1
-#define log(msg,window) printf("[ %s ] \t,%lu\n", msg,window)
+#if M_LOG
+#define _Xdebug 1
+#define log(msg, window) printf("[ %s ] \t,%lu\n", msg, window)
 #else
-#define log(msg,window) 
-#endif //M_LOG
+#define log(msg, window)
+#endif // M_LOG
 
 #define MWM_HINTS_FLAGS_FIELD 0
 #define MWM_HINTS_DECORATIONS_FIELD 2
@@ -118,8 +124,6 @@ void OnConfigureNotify(XEvent *e);
 
 void OnMappingNotify(XEvent *e);
 
-
-
 void Unframe(XUnmapEvent *ev);
 void setFocus(XEvent *e);
 void justprint(XEvent *e);
@@ -138,8 +142,7 @@ void setRootEvent();
 // tiling window support
 // lua integration for each parts. it could be good for feathure
 // void sendNotefication(Window window,char ** msg,int up);
-// create clickable {button menue labels textbox} 
-
+// create clickable {button menue labels textbox}
 
 void setMotifWMHints(Display *display, Window window, unsigned long *hints,
                      int numHints);
@@ -283,9 +286,9 @@ char(*errors[BadImplementation + 1]) = {
 };
 
 void (*events[LASTEvent])(XEvent *e) = {
-    [CirculateNotify] = justprint,		
+    [CirculateNotify] = justprint,
     [CirculateRequest] = justprint,
-    [GenericEvent] = justprint,		
+    [GenericEvent] = justprint,
     [ButtonPress] = justprint,
     [ButtonRelease] = justprint,
     [ClientMessage] = justprint,
