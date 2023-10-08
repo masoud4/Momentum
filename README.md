@@ -2,7 +2,7 @@
 Momentum is a lightweight and customizable window manager for learning how to develop a window manager.
 
 ## Installation
-To install Momentum, clone the repository and run the install script:
+To install Momentum, clone the repository and run the installation script:
 
     * git clone https://github.com/masoud4/Momemum
     * cd Momentum

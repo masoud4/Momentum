@@ -18,20 +18,35 @@
 #include <unistd.h>
 
 #define LENGTH(x) (sizeof(x) / sizeof(*(x)))
-#define CLEANMASK(mask) ((mask) & ~(numlockmask | LockMask))
-#define MAXMONITOR 10
-#define MAXARG 10
-#define MAXLENGHT 1024
-#define GETCURRENTWINDOW(Index) monitors[Index].current->window
-#define SETCURRENTWINDOWS(Index, windows) monitors[Index].current = windows
-
+#define CLEAN_MASK(mask) ((mask) & ~(numlockmask | LockMask))
+#define MAX_MONITOR 10
+#define MAX_ARG 10
+#define MAX_LENGTH 1024
+#define GET_CURRENT_WINDOW(Index) monitors[Index].current->window
+#define BUTTON_MASK (ButtonPressMask | ButtonReleaseMask)
+#define MOUSE_MASK (BUTTON_MASK | PointerMotionMask)
 #define MWM_HINTS_FLAGS_FIELD 0
 #define MWM_HINTS_DECORATIONS_FIELD 2
+#define WM_ATRIB                                                               \
+  SubstructureRedirectMask | SubstructureNotifyMask | ButtonPressMask |        \
+      PointerMotionMask | EnterWindowMask | LeaveWindowMask |                  \
+      StructureNotifyMask | PropertyChangeMask | Button1MotionMask |           \
+      Button2MotionMask
 
 #define MWM_HINTS_DECORATIONS (1 << 1)
 #define MWM_DECOR_ALL (1 << 0)
 #define MWM_DECOR_BORDER (1 << 1)
 #define MWM_DECOR_TITLE (1 << 3)
+
+enum {
+  ClkTagBar,
+  ClkLtSymbol,
+  ClkStatusText,
+  ClkWinTitle,
+  ClkClientWin,
+  ClkRootWin,
+  ClkLast
+}; /* clicks */
 
 typedef union {
   const char **com;
@@ -45,6 +60,14 @@ typedef struct {
   void (*func)(const Arg *);
   const Arg arg;
 } Key;
+
+typedef struct {
+  unsigned int click;
+  unsigned int mask;
+  unsigned int button;
+  void (*func)(const Arg *arg);
+  const Arg arg;
+} Button;
 
 typedef enum {
   STICKY,
@@ -60,8 +83,16 @@ typedef enum {
   DEMANDS_ATTENTION,
 } state;
 
+typedef struct {
+  Window rootWindow;
+  Window childWindow;
+  int rootX, rootY, winX, winY;
+  unsigned int mask;
+  int screenNumber;
+} info;
+
 struct Windows {
-  int identefire;
+  int identifier;
   int x, y, width, height, oldx, oldy, oldwidth, oldheight;
   state status;
   Window window;
@@ -82,38 +113,76 @@ struct Monitor {
 
 typedef struct {
   Atom atom;
+
   void (*handler)(XEvent *);
 } EventMapping;
 
 void execute(const Arg *arg);
+
 void getWindowsData();
+
 void SwitchWindows();
+
 void FullScreen();
+
 void Maximize();
+
+void resize(const Arg *arg);
+
+void move(const Arg *arg);
+
+void focus(const Arg *arg);
+
+info query(Window w);
+
 void SwitchMonitor(const Arg *arg);
+
 void MoveToMonitor(const Arg *arg);
+
 void KillWindow();
+
 void Arrange(const Arg *arg);
+
 int OnXError(Display *display, XErrorEvent *e);
+
 void grabkeys(void);
+
 int sendevent(Window w, Atom proto);
+
 bool initRootWidow(void);
+
 void OnMapRequest(XEvent *e);
+
 void Frame(Window window);
+
 void OnUnmapNotify(XEvent *e);
+
 void OnmapNotify(XEvent *e);
+
 void OnPropertyNotify(XEvent *e);
+
 void OnDestroyNotify(XEvent *e);
 
 void Unframe(XUnmapEvent *ev);
+
 void setFocus(XEvent *e);
+
 void justprint(XEvent *e);
+
 void onConfigureNotify(XEvent *e);
+
 void onConfigureRequest(XEvent *e);
+
 void onMotionNotify(XEvent *e);
+
 void Onkey(XEvent *e);
+
+void buttonpress(XEvent *e);
+
 bool updateCurrentWindow(Window window, int Index);
+
 bool windowExist(Window window, int Index);
+
 void upWindow(Window window);
 
 void setMotifWMHints(Display *display, Window window, unsigned long *hints,
@@ -130,13 +199,21 @@ Pixmap createPixmap(Display *display, Window root, unsigned int width,
                     unsigned int height, unsigned char *data);
 
 bool getWindowAtom(Window window, char *AtomName);
+
 bool getWindow_NET_WM_Atom(Window window, char *AtomName);
+
 bool getWindow_EWMH_Atom(Window window, char *AtomName);
+
 struct Windows *getWindow(Window window, int Index);
+
 void run(void);
+
 bool isStickWindows(Window window);
+
 bool isAboveWindows(Window window);
+
 bool isPanel(Window window);
+
 void updatePanelInfo(XEvent *e);
 
 enum programs {
@@ -160,7 +237,7 @@ enum programs {
 
   maxprogram
 };
-char(*app[maxprogram][MAXARG]) = {
+char(*app[maxprogram][MAX_ARG]) = {
     [SoundStart] = {"mplayer",
                     "/usr/local/share/sounds/macOSBigSurSound/Bottle.aiff",
                     NULL},
@@ -235,6 +312,11 @@ static Key keys[] = {
     {Mod4Mask | ShiftMask, XK_9, MoveToMonitor, {.i = 9}},
     {Mod4Mask | ShiftMask, XK_0, MoveToMonitor, {.i = 0}},
 };
+static Button buttons[] = {
+    {ClkClientWin, Mod1Mask, Button1, resize, {}},
+    {ClkClientWin, Mod4Mask, Button1, move, {}},
+    {ClkClientWin, 0, Button1, focus, {}},
+};
 
 char(*errors[BadImplementation + 1]) = {
     [Success] = "everything's okay ",
@@ -258,7 +340,6 @@ char(*errors[BadImplementation + 1]) = {
 };
 
 void (*events[LASTEvent])(XEvent *e) = {
-    [ButtonPress] = justprint,
     [ClientMessage] = justprint,
     [ConfigureRequest] = onConfigureRequest,
     [ConfigureNotify] = justprint,
@@ -268,6 +349,7 @@ void (*events[LASTEvent])(XEvent *e) = {
     [Expose] = justprint,
     [FocusIn] = setFocus,
     [KeyPress] = Onkey,
+    [ButtonPress] = buttonpress,
     [MappingNotify] = justprint,
     [MapRequest] = OnMapRequest,
     [MotionNotify] = onMotionNotify,
