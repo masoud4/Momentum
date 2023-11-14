@@ -38,6 +38,7 @@
 #define MWM_DECOR_BORDER (1 << 1)
 #define MWM_DECOR_TITLE (1 << 3)
 
+#define WINDOW_IS_NOT_VALID window == Root || window == None
 enum {
   ClkTagBar,
   ClkLtSymbol,
@@ -91,130 +92,130 @@ typedef struct {
   int screenNumber;
 } info;
 
-struct Windows {
+struct client {
   int identifier;
   int x, y, width, height, oldx, oldy, oldwidth, oldheight;
   state status;
   Window window;
-  struct Windows *last;
+  struct client *last;
 };
 
 struct panel {
   Window window;
-  int position; // 0 means top  1,2,3 means right, button, left
+  int position; // 0 : top  1,2,3 : right, button, left
   int height, width;
 } panel;
 
 struct Monitor {
   char **name;
-  struct Windows *windows;
-  struct Windows *current;
+  struct client *clients;
+  struct client *current;
 };
 
 typedef struct {
   Atom atom;
-
   void (*handler)(XEvent *);
 } EventMapping;
 
-void execute(const Arg *arg);
+static void execute(const Arg *arg);
 
-void getWindowsData();
+static void getWindowsData();
 
-void SwitchWindows();
+static void SwitchClients();
 
-void FullScreen();
+static void FullScreen();
 
-void Maximize();
+static void Maximize();
 
-void resize(const Arg *arg);
+static void resize(const Arg *arg);
 
-void move(const Arg *arg);
+static void move(const Arg *arg);
 
-void focus(const Arg *arg);
+static void focus(const Arg *arg);
 
-info query(Window w);
+static info query(Window w);
 
-void SwitchMonitor(const Arg *arg);
+static void SwitchMonitor(const Arg *arg);
 
-void MoveToMonitor(const Arg *arg);
+static void MoveToMonitor(const Arg *arg);
 
-void KillWindow();
+static void KillWindow();
 
-void Arrange(const Arg *arg);
+static void Arrange(const Arg *arg);
 
-int OnXError(Display *display, XErrorEvent *e);
+static int OnXError(Display *display, XErrorEvent *e);
 
-void grabkeys(void);
+static void grabkeys(void);
 
-int sendevent(Window w, Atom proto);
+static int sendevent(Window w, Atom proto);
 
-bool initRootWidow(void);
+static bool initRootWidow(void);
 
-void OnMapRequest(XEvent *e);
+static void OnMapRequest(XEvent *e);
 
-void Frame(Window window);
+static void Frame(Window window);
 
-void OnUnmapNotify(XEvent *e);
+static void OnUnmapNotify(XEvent *e);
 
-void OnmapNotify(XEvent *e);
+static void OnmapNotify(XEvent *e);
 
-void OnPropertyNotify(XEvent *e);
+static void OnPropertyNotify(XEvent *e);
 
-void OnDestroyNotify(XEvent *e);
+static void OnDestroyNotify(XEvent *e);
 
-void Unframe(XUnmapEvent *ev);
+static void Unframe(XUnmapEvent *ev);
 
-void setFocus(XEvent *e);
+static void setFocus(XEvent *e);
 
-void justprint(XEvent *e);
+static void justprint(XEvent *e);
 
-void onConfigureNotify(XEvent *e);
+static void onConfigureNotify(XEvent *e);
 
-void onConfigureRequest(XEvent *e);
+static void onConfigureRequest(XEvent *e);
 
-void onMotionNotify(XEvent *e);
+static void onMotionNotify(XEvent *e);
 
-void Onkey(XEvent *e);
+static void Onkey(XEvent *e);
 
-void buttonpress(XEvent *e);
+static void buttonpress(XEvent *e);
 
-bool updateCurrentWindow(Window window, int Index);
+static void OnMapingNotify(XEvent *e);
+static bool updateCurrentWindow(Window window, int Index);
 
-bool windowExist(Window window, int Index);
+static bool windowExist(Window window, int Index);
 
-void upWindow(Window window);
+static void upWindow(Window window);
 
-void setMotifWMHints(Display *display, Window window, unsigned long *hints,
-                     int numHints);
+static void setMotifWMHints(Display *display, Window window,
+                            unsigned long *hints, int numHints);
 
-void setWindowProperty(Display *display, Window window,
-                       const char *propertyName, Atom propertyValue);
+static void setWindowProperty(Display *display, Window window,
+                              const char *propertyName, Atom propertyValue);
 
-void getWindowProperty(Display *display, Window window,
-                       const char *propertyName, char *propertyType,
-                       void **propertyValue, unsigned long *numItems);
+static void getWindowProperty(Display *display, Window window,
+                              const char *propertyName, char *propertyType,
+                              void **propertyValue, unsigned long *numItems);
 
-Pixmap createPixmap(Display *display, Window root, unsigned int width,
-                    unsigned int height, unsigned char *data);
+static Pixmap createPixmap(Display *display, Window root, unsigned int width,
+                           unsigned int height, unsigned char *data);
 
-bool getWindowAtom(Window window, char *AtomName);
+static bool getWindowAtom(Window window, char *AtomName);
 
-bool getWindow_NET_WM_Atom(Window window, char *AtomName);
+static bool getWindow_NET_WM_Atom(Window window, char *AtomName);
 
-bool getWindow_EWMH_Atom(Window window, char *AtomName);
+static bool getWindow_EWMH_Atom(Window window, char *AtomName);
 
-struct Windows *getWindow(Window window, int Index);
+static struct client *getWindow(Window window, int Index);
 
-void run(void);
+static void run(void);
 
-bool isStickWindows(Window window);
+static bool isStickWindows(Window window);
 
-bool isAboveWindows(Window window);
+static bool isAboveWindows(Window window);
 
-bool isPanel(Window window);
+static bool isPanel(Window window);
 
-void updatePanelInfo(XEvent *e);
+static void updatePanelInfo(XEvent *e);
 
 enum programs {
   SoundStart,
@@ -237,6 +238,7 @@ enum programs {
 
   maxprogram
 };
+
 char(*app[maxprogram][MAX_ARG]) = {
     [SoundStart] = {"mplayer",
                     "/usr/local/share/sounds/macOSBigSurSound/Bottle.aiff",
@@ -284,7 +286,7 @@ static Key keys[] = {
     {0, XK_F2, execute, {.v = &app[voldown]}},
     {0, XK_F3, execute, {.v = &app[volup]}},
     {Mod1Mask, XK_l, getWindowsData, {}},
-    {Mod1Mask, XK_Tab, SwitchWindows, {}},
+    {Mod1Mask, XK_Tab, SwitchClients, {}},
     {Mod1Mask, XK_f, Maximize, {}},
     {Mod1Mask, XK_F11, FullScreen, {}},
     {Mod1Mask, XK_F4, KillWindow, {}},
@@ -338,29 +340,54 @@ char(*errors[BadImplementation + 1]) = {
     [BadLength] = "Request length incorrect ",
     [BadImplementation] = "server is defective ",
 };
+/*
+ *
 
+ */
 void (*events[LASTEvent])(XEvent *e) = {
     [ClientMessage] = justprint,
     [ConfigureRequest] = onConfigureRequest,
-    [ConfigureNotify] = justprint,
     [MapNotify] = OnmapNotify,
     [DestroyNotify] = OnDestroyNotify,
-    [EnterNotify] = justprint,
-    [Expose] = justprint,
     [FocusIn] = setFocus,
     [KeyPress] = Onkey,
     [ButtonPress] = buttonpress,
-    [MappingNotify] = justprint,
     [MapRequest] = OnMapRequest,
     [MotionNotify] = onMotionNotify,
     [PropertyNotify] = OnPropertyNotify,
     [UnmapNotify] = OnUnmapNotify,
+/*
+    [ConfigureNotify] = onConfigureNotify,
+    [EnterNotify] = justprint,
+    [Expose] = justprint,
+    [ResizeRequest] = justprint,
+
+    [MappingNotify] = justprint,
+    [KeyRelease] = justprint,
+    [ButtonRelease] = justprint,
+    [LeaveNotify] = justprint,
+    [FocusOut] = justprint,
+    [KeymapNotify] = justprint,
+    [GraphicsExpose] = justprint,
+    [NoExpose] = justprint,
+    [VisibilityNotify] = justprint,
+    [CreateNotify] = justprint,
+    [ReparentNotify] = justprint,
+    [GravityNotify] = justprint,
+    [CirculateNotify] = justprint,
+    [CirculateRequest] = justprint,
+    [SelectionClear] = justprint,
+    [SelectionRequest] = justprint,
+    [SelectionNotify] = justprint,
+    [ColormapNotify] = justprint,
+    [GenericEvent] = justprint,
+    */
 };
 
 Display *display;
 Window Root;
 int MonitorIndex = 1;
-int screen;
+Screen *screen;
 static unsigned int numlockmask;
 
 unsigned long motifHints[] = {
