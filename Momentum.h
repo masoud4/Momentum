@@ -31,12 +31,17 @@
   SubstructureRedirectMask | SubstructureNotifyMask | ButtonPressMask |        \
       PointerMotionMask | EnterWindowMask | LeaveWindowMask |                  \
       StructureNotifyMask | PropertyChangeMask | Button1MotionMask |           \
-      Button2MotionMask
+      Button2MotionMask|VisibilityChangeMask
 
 #define MWM_HINTS_DECORATIONS (1 << 1)
 #define MWM_DECOR_ALL (1 << 0)
 #define MWM_DECOR_BORDER (1 << 1)
 #define MWM_DECOR_TITLE (1 << 3)
+#define MIN(X,Y) X>Y ? Y :X
+#define MAX(X,Y) X<Y ? Y :X
+#define M_WIDTH 800
+#define M_HEIGHT 600
+
 
 #define WINDOW_IS_NOT_VALID window == Root || window == None
 enum {
@@ -110,6 +115,8 @@ struct Monitor {
   char **name;
   struct client *clients;
   struct client *current;
+  int x_init;
+  int y_init;
 };
 
 typedef struct {
@@ -117,9 +124,18 @@ typedef struct {
   void (*handler)(XEvent *);
 } EventMapping;
 
+static Bool doesWindowExist(Window window) ;
+
+static void updateDesktop(XEvent *e);
+
+static void sendCloseEvent( Window window) ;
+static bool getWindowSizeHints( Window window, XSizeHints *hints) ;
 static void execute(const Arg *arg);
 
 static void getWindowsData();
+
+static char* getWindowsDataAsstring() ;
+static void showLog();
 
 static void SwitchClients();
 
@@ -147,7 +163,7 @@ static int OnXError(Display *display, XErrorEvent *e);
 
 static void grabkeys(void);
 
-static int sendevent(Window w, Atom proto);
+// static int sendevent(Window w, Atom proto);
 
 static bool initRootWidow(void);
 
@@ -156,6 +172,7 @@ static void OnMapRequest(XEvent *e);
 static void Frame(Window window);
 
 static void OnUnmapNotify(XEvent *e);
+static void OnExpose(XEvent *e);
 
 static void OnmapNotify(XEvent *e);
 
@@ -163,6 +180,7 @@ static void OnPropertyNotify(XEvent *e);
 
 static void OnDestroyNotify(XEvent *e);
 
+static void OnEnterNotify(XEvent *e);
 static void Unframe(XUnmapEvent *ev);
 
 static void setFocus(XEvent *e);
@@ -285,7 +303,7 @@ static Key keys[] = {
     {Mod4Mask, XK_q, execute, {.v = &app[killmusic]}},
     {0, XK_F2, execute, {.v = &app[voldown]}},
     {0, XK_F3, execute, {.v = &app[volup]}},
-    {Mod1Mask, XK_l, getWindowsData, {}},
+    // {Mod1Mask, XK_l, showLog, {}},
     {Mod1Mask, XK_Tab, SwitchClients, {}},
     {Mod1Mask, XK_f, Maximize, {}},
     {Mod1Mask, XK_F11, FullScreen, {}},
@@ -316,8 +334,8 @@ static Key keys[] = {
 };
 static Button buttons[] = {
     {ClkClientWin, Mod1Mask, Button1, resize, {}},
+    // {ClkClientWin, 0, Button1, resize, {}},
     {ClkClientWin, Mod4Mask, Button1, move, {}},
-    {ClkClientWin, 0, Button1, focus, {}},
 };
 
 char(*errors[BadImplementation + 1]) = {
@@ -356,12 +374,11 @@ void (*events[LASTEvent])(XEvent *e) = {
     [MotionNotify] = onMotionNotify,
     [PropertyNotify] = OnPropertyNotify,
     [UnmapNotify] = OnUnmapNotify,
-/*
+    [Expose] = OnExpose,
     [ConfigureNotify] = onConfigureNotify,
-    [EnterNotify] = justprint,
-    [Expose] = justprint,
+    [EnterNotify] = OnEnterNotify,
+/*
     [ResizeRequest] = justprint,
-
     [MappingNotify] = justprint,
     [KeyRelease] = justprint,
     [ButtonRelease] = justprint,
@@ -396,3 +413,4 @@ unsigned long motifHints[] = {
     MWM_HINTS_DECORATIONS, MWM_DECOR_BORDER,
     MWM_DECOR_TITLE,
 };
+

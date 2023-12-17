@@ -1,10 +1,14 @@
 #include "Momentum.h"
+ // #include "MDK.h"
 #include "X11/X.h"
 #include "X11/XKBlib.h"
 #include "X11/Xlib.h"
 #include "X11/Xproto.h"
+#include "X11/Xutil.h"
+#include "util.h"
 #include <X11/extensions/Xrandr.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct Monitor monitors[MAX_MONITOR];
@@ -82,11 +86,54 @@ void dummyClient(void) {
         monitors[i].clients = malloc(sizeof(struct client));
         monitors[i].clients->last = malloc(sizeof(struct client));
         monitors[i].current = monitors[i].clients;
+        monitors[i].x_init = 300;
+        monitors[i].y_init = 200;
     }
     panel.window = None;
     panel.height = panel.width = 0;
 }
+ // void showLog(){
+ //
+ //     init();
+ //     window masoud = create_window((const char *)("masoud"), 600,400,100,100,None,None);
+ //     
+ //     window b2 = create_button((const char *)("exit"),90,20,500,380,masoud) ;
+ //     
+ //     window t1 = create_textbox((const char *)("t1"),(const char *)(getWindowsDataAsstring),200,200,100,100,masoud) ;
+ //     call_back(b2, exit,NULL);
+ //   
+ // }
 
+char* getWindowsDataAsstring() {
+    char *result = malloc(1);  // Start with an empty string
+    result[0] = '\0';
+
+    for (int i = 0; i < MAX_MONITOR; i++) {
+        Window current = monitors[i].current != NULL
+                                 ? monitors[i].current->window
+                                 : (Window) -1;
+        if (current == None)
+            return result;
+
+        // Create a temporary buffer to hold the current line
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "%d : { current : %lu,  clients :", i, current);
+        strcat(result, buffer);
+
+        if (monitors[i].current->window != NULL) {
+            for (struct client *windows = monitors[i].clients;
+                 windows && windows->window && windows->last;
+                 windows = windows->last) {
+                snprintf(buffer, sizeof(buffer), "   %lu : %d", windows->window, windows->identifier);
+                strcat(result, buffer);
+            }
+        }
+
+        strcat(result, "  },\n");
+    }
+
+    return result;
+}
 void getWindowsData() {
     for (int i = 0; i < MAX_MONITOR; i++) {
         Window current = monitors[i].current != (struct client *) NULL
@@ -178,7 +225,7 @@ bool modifyMonitor(Window window, int Index, int NextIndex) {
                 updateCurrentWindow(-1, Index);
                 return true;
             }
-            updateCurrentWindow(window, NextIndex);
+            // updateCurrentWindow(window, NextIndex);
             return true;
         }
     }
@@ -211,7 +258,6 @@ bool initRootWidow(void) {
     screen = XScreenOfDisplay(display, 0);
     Root = XRootWindowOfScreen(screen);
     XSetWMName(display, Root, &wmName);
-
     XSetErrorHandler(OnXError);
     XGrabServer(display);
     XSync(display, False);
@@ -330,12 +376,17 @@ void FullScreen() {
 
     int max_width = DisplayWidth(display, tmp.screenNumber);
     int max_height = DisplayHeight(display, tmp.screenNumber);
+    int x = 0, y = 0;
+
+    getResolution(display, &max_width, &max_height, &x, &y);
+
 
     struct client *windows = getNextWindow(current, MonitorIndex);
+
     if (windows == NULL)
         return;
 
-    XMoveResizeWindow(display, current, 0, 0, max_width, max_height);
+    XMoveResizeWindow(display, current, x, y, max_width, max_height);
 
     Atom atom_fullscreen =
             XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
@@ -347,8 +398,8 @@ void FullScreen() {
 
     windows->width = max_width;
     windows->height = max_height;
-    windows->x = 0;
-    windows->y = 0;
+    windows->x = x;
+    windows->y = y;
 
     XSync(display, False);
 }
@@ -399,8 +450,10 @@ void Maximize() {
     int max_width = DisplayWidth(display, tmp.screenNumber);
     int max_height = DisplayHeight(display, tmp.screenNumber) - panel.height;
 
-    int x = 0;
-    int y = panel.height;
+    int x = 0, y = 0;
+
+    getResolution(display, &max_width, &max_height, &x, &y);
+    y = panel.height;
 
     XMoveResizeWindow(display, current, x, y, max_width, max_height);
     Atom atom_fullscreen =
@@ -423,6 +476,7 @@ void Maximize() {
     XSync(display, False);
 }
 
+
 void resize(const Arg *arg) {
     XEvent e;
     XMotionEvent *ev = &e.xmotion;
@@ -436,16 +490,29 @@ void resize(const Arg *arg) {
         return;
     }
 
-    dx = ev->x;
-    dy = ev->y;
+    dx = 1;
+    dy = 1;
 
     struct client *windows = getWindow(current, MonitorIndex);
     if (windows == NULL)
         return;
+    XSizeHints *hints;
+    long suppliedHints;
+    hints = XAllocSizeHints();
+    XGetWMNormalHints(display, current, hints, &suppliedHints);
+
 
     do {
-        dx = ev->x - dx;
-        dy = ev->y - dy;
+        // if ((suppliedHints & PMinSize) && (windows->width < hints->min_width || windows->height < hints->min_height)) {
+        //     ev->x = MAX(ev->x - dx,windows->width);
+        //     ev->y = MAX(ev->y - dy,windows->height);
+        // }else if ((suppliedHints & PMaxSize) && (windows->width > hints->max_width || windows->height > hints->max_height)) {
+        //     ev->x = MAX(ev->x - dx,windows->width);
+        //     ev->y = MAX(ev->y - dy,windows->height);
+        // }else{
+        //     ev->x = ev->x - dx;
+        //     ev->y = ev->y - dy;
+        // }
         XMaskEvent(display, MOUSE_MASK | ExposureMask | SubstructureRedirectMask,
                    &e);
         XResizeWindow(display, monitors[MonitorIndex].current->window, ev->x,
@@ -456,8 +523,11 @@ void resize(const Arg *arg) {
         monitors[MonitorIndex].current->height = ev->y;
         XSync(display, False);
     } while (ev->type != ButtonRelease);
+    XMaskEvent(display, ButtonReleaseMask, &e);
     XUngrabPointer(display, CurrentTime);
+    return;
 }
+
 
 void move(const Arg *arg) {
     XEvent e;
@@ -501,17 +571,21 @@ void Arrange(const Arg *arg) {
     int width = DisplayWidth(display, DefaultScreen(display));
     int height = DisplayHeight(display, DefaultScreen(display)) - panel.height;
 
+
+    int x = 0, y = 0;
+
+    getResolution(display, &width, &height, &x, &y);
     if (arg->i == 0) {
         monitors[MonitorIndex].current->width = width / 2;
         monitors[MonitorIndex].current->height = height;
-        monitors[MonitorIndex].current->x = 0;
+        monitors[MonitorIndex].current->x = x;
         monitors[MonitorIndex].current->y = panel.height;
     }
 
     if (arg->i == 1) {
         monitors[MonitorIndex].current->width = width / 2;
         monitors[MonitorIndex].current->height = height;
-        monitors[MonitorIndex].current->x = width / 2;
+        monitors[MonitorIndex].current->x = x + width / 2;
         monitors[MonitorIndex].current->y = panel.height;
     }
 
@@ -587,12 +661,36 @@ void MoveToMonitor(const Arg *arg) {
     XSync(display, False);
 }
 
+void sendCloseEvent(Window window) {
+    Atom WM_PROTOCOLS = XInternAtom(display, "WM_PROTOCOLS", False);
+    Atom WM_DELETE_WINDOW = XInternAtom(display, "WM_DELETE_WINDOW", False);
+    XSetWMProtocols(display, window, &WM_DELETE_WINDOW, 1);
+
+    XEvent ev;
+    ev.xclient.type = ClientMessage;
+    ev.xclient.window = window;
+    ev.xclient.message_type = WM_PROTOCOLS;
+    ev.xclient.format = 32;
+    ev.xclient.data.l[0] = WM_DELETE_WINDOW;
+
+    XSendEvent(display, window, False, NoEventMask, &ev);
+    XFlush(display);
+}
+
 void KillWindow() {
     Window window = GET_CURRENT_WINDOW(MonitorIndex);
-
+    printf("killing window %lu\n", window);
     if (WINDOW_IS_NOT_VALID) {
         return;
     }
+    Atom *supported_protocols;
+    int num_supported_protocols;
+    if (XGetWMProtocols(display, window, &supported_protocols,
+                        &num_supported_protocols)) {
+        sendCloseEvent(window);
+        return;
+    }
+
     XGrabServer(display);
     struct client *tmp = getNextWindow(window, MonitorIndex);
     XKillClient(display, window);
@@ -663,28 +761,13 @@ void Onkey(XEvent *e) {
 void justprint(XEvent *e) { printf("[+] Info : event type %d\n", e->type); }
 
 void onConfigureNotify(XEvent *e) {
-    XConfigureEvent *configureEvent = &(e->xconfigure);
-
-    if (configureEvent->window == Root || configureEvent->window == None) {
-        return;
-    }
-    printf(
-            "Window %lu has been configured. New position: %d,%d, new size: %d,%d\n",
-            configureEvent->window, configureEvent->x, configureEvent->y,
-            configureEvent->width, configureEvent->height);
-    XWindowChanges changes;
-    changes.x = configureEvent->x;
-    changes.y = configureEvent->y;
-    changes.width = configureEvent->width;
-    changes.height = configureEvent->height;
-
-    XConfigureWindow(display, configureEvent->window,
-                     CWX | CWY | CWWidth | CWHeight, &changes);
+    XFlush(display);
 }
 
 void onConfigureRequest(XEvent *e) {
     XConfigureRequestEvent *configureRequest = &(e->xconfigurerequest);
 
+    printf("on configureRequest- %lu\n", configureRequest->window);
     if (configureRequest->window == Root || configureRequest->window == None) {
         return;
     }
@@ -737,27 +820,61 @@ void OnUnmapNotify(XEvent *e) {
     XSync(display, False);
 }
 
-void OnPropertyNotify(XEvent *e) {
+void OnExpose(XEvent *e) {
+    XFlush(display);
+}
 
+void printAtomName(Display *display, Atom atom, Window win) {
+    char *atomName = XGetAtomName(display, atom);
+
+    if (atomName != NULL) {
+        printf("[%lu] Atom Name: %s\n", win, atomName);
+        XFree(atomName);
+    } else {
+        printf("Failed to get atom name.\n");
+    }
+}
+
+Bool doesWindowExist(Window window) {
+    XWindowAttributes windowAttrs;
+    return XGetWindowAttributes(display, window, &windowAttrs);
+}
+
+long getAtomValue(Window window, Atom atom) {
+    Atom actualType;
+    int actualFormat;
+    unsigned long nItems, bytesAfter;
+    unsigned char *propData;
+
+    if (XGetWindowProperty(display, window, atom, 0, 1, False, AnyPropertyType,
+                           &actualType, &actualFormat, &nItems, &bytesAfter, &propData) == Success) {
+        if (actualType != None) {
+            long atomValue = *(long *) propData;
+            XFree(propData);
+            return atomValue;
+        }
+        XFree(propData);
+    }
+    return 0;
+}
+
+void OnPropertyNotify(XEvent *e) {
     EventMapping eventMap[] = {
-            {XInternAtom(display, "_NET_WM_WINDOW_TYPE_DESKTOP", False),
-             updatePanelInfo},
-            {XInternAtom(display, "_NET_WM_WINDOW_TYPE_DOCK", False),
-             updatePanelInfo},
-            {XInternAtom(display, "_NET_WM_WINDOW_TYPE_TOOLBAR", False),
-             updatePanelInfo},
+            {XInternAtom(display, "_NET_WM_WINDOW_TYPE_DOCK", False), updatePanelInfo},
+            {XInternAtom(display, "_NET_WM_WINDOW_TYPE_DESKTOP", False), updateDesktop},
+            {XInternAtom(display, "_NET_WM_WINDOW_TYPE_TOOLBAR", False), updatePanelInfo},
     };
+
     XPropertyEvent *ev = &e->xproperty;
     size_t numEvents = sizeof(eventMap) / sizeof(EventMapping);
     Atom atom = ev->atom;
+    printAtomName(display, atom, ev->window);
     for (size_t i = 0; i < numEvents; ++i) {
-        if (eventMap[i].atom == atom) {
-            EventMapping mapping = eventMap[i];
-            mapping.handler(e);
+        if (eventMap[i].atom == getAtomValue(ev->window, atom)) {
+            eventMap[i].handler(e);
             break;
         }
     }
-    updatePanelInfo(e);
 }
 
 void Unframe(XUnmapEvent *ev) {
@@ -791,23 +908,15 @@ void OnMapRequest(XEvent *e) {
 void OnmapNotify(XEvent *e) {
     XMapEvent *mapEvent = &(e->xmap);
 
-    // Extract information from the mapNotify event
     Window mappedWindow = mapEvent->window;
 
     if (mappedWindow == Root || mappedWindow == None) {
         return;
     }
-    // Other properties can be accessed using mapEvent->property
-
-    // Perform actions or updates based on the mapped window
     printf("Window mapped: %lu\n", mappedWindow);
 
-    // Add your own code here to handle the mapNotify event
-
-    // Example: Set the window title
     XStoreName(display, mappedWindow, "Mapped Window");
 
-    // Example: Repaint the window
     XClearWindow(display, mappedWindow);
 }
 
@@ -818,29 +927,31 @@ void OnDestroyNotify(XEvent *event) {
         return;
     }
 
-    printf("Window with ID %lu is being destroyed.\n", destroyEvent->window);
-    // Perform any cleanup or necessary actions here
-    // ...
 
-    // Reparent the window to the root window
     XReparentWindow(display, destroyEvent->window, Root, 0, 0);
 
-    // Map the reparented window
     XMapWindow(display, destroyEvent->window);
+}
+
+void OnEnterNotify(XEvent *e) {
+    XEnterWindowEvent *ev = &e->xcrossing;
+    //upWindow(ev->window);
 }
 
 void Frame(Window window) {
     if (WINDOW_IS_NOT_VALID) {
         return;
     }
+    XSizeHints sizeHints;
 
     XWindowAttributes x_window_attrs;
     XGetWindowAttributes(display, window, &x_window_attrs);
     XSetWindowAttributes wa;
-    int x, y, z, v;
+    int x, y, z, v, width, height;
+    x = y = 0;
     unsigned int mask;
+    long suppliedHints;
     Window root_return, child_return;
-    XQueryPointer(display, window, &root_return, &child_return, &z, &v, &x, &y, &mask);
 
     XSelectInput(display, window,
                  EnterWindowMask | PointerMotionMask | FocusChangeMask |
@@ -848,18 +959,60 @@ void Frame(Window window) {
     XAddToSaveSet(display, window);
     XMapWindow(display, window);
     addWindow(window, MonitorIndex);
+    width = x_window_attrs.width;
+    height = x_window_attrs.height;
 
-    if (isPanel(window)) {
-        x = y = 0;
+
+    if (XGetWMNormalHints(display, window, &sizeHints, &suppliedHints) != 0) {
+        if (sizeHints.flags & PPosition) {
+            x = sizeHints.x;
+            y = sizeHints.y;
+        }
+
+        if (sizeHints.flags & PSize) {
+            width = MIN(M_WIDTH, sizeHints.width);
+            height = MIN(M_HEIGHT, sizeHints.height);
+        }
+
+        if (sizeHints.flags & PMinSize) {
+            width = MAX(M_WIDTH, sizeHints.min_width);
+            height = MAX(M_HEIGHT, sizeHints.min_height);
+        }
     }
 
-    monitors[MonitorIndex].clients->x = x;
-    monitors[MonitorIndex].clients->y = y;
-    monitors[MonitorIndex].clients->width = x_window_attrs.width;
-    monitors[MonitorIndex].clients->height = x_window_attrs.height;
+
+    int max_width, max_height, xx, yy;
+    getResolution(display, &max_width, &max_height, &xx, &yy);
+    if (isPanel(window)) {
+        monitors[MonitorIndex].clients->x = 0;
+        monitors[MonitorIndex].clients->y = 0;
+    } else if (x || y) {
+        monitors[MonitorIndex].clients->x = x;
+        monitors[MonitorIndex].clients->y = y;
+    } else if (!x && !y) {
+        if (
+                monitors[MonitorIndex].x_init > max_width / 2) {
+            monitors[MonitorIndex].x_init = max_width / 2;
+        }
+        if (
+                monitors[MonitorIndex].y_init > max_height / 2) {
+            monitors[MonitorIndex].y_init = max_height / 2;
+        }
+        monitors[MonitorIndex].clients->x = monitors[MonitorIndex].x_init;
+        monitors[MonitorIndex].clients->y = monitors[MonitorIndex].y_init;
+        monitors[MonitorIndex].x_init += 1;
+        monitors[MonitorIndex].y_init += 5;
+    } else {
+        XQueryPointer(display, window, &root_return, &child_return, &z, &v, &x, &y, &mask);
+        monitors[MonitorIndex].clients->x = x;
+        monitors[MonitorIndex].clients->y = y;
+    }
+
+    monitors[MonitorIndex].clients->width = width;
+    monitors[MonitorIndex].clients->height = height;
+
     upWindow(window);
     wa.event_mask = WM_ATRIB;
-    // XChangeWindowAttributes(display, window, CWEventMask | CWCursor, &wa);
     XSelectInput(display, Root, wa.event_mask);
 
     updateCurrentWindow(window, MonitorIndex);
@@ -981,10 +1134,17 @@ void updatePanelInfo(XEvent *e) {
         panel.position = 0;
     }
 }
+void updateDesktop(XEvent *e) {
+
+    printf("exit on updateDesktop request");
+    exit(1);
+}
+
 
 int main() {
     dummyClient();
     initRootWidow();
+    // XSynchronize(display, True);
     run();
     return 0;
 }
