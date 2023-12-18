@@ -1,6 +1,9 @@
 # Momentum
 Momentum is a lightweight and customizable window manager for learning how to develop a window manager.
 
+## Screenshot
+![Sample Image](./assets/Naqsh_20231218075141.png)
+
 ## Installation
 To install Momentum, clone the repository and run the installation script:
 
@@ -28,5 +31,3 @@ Momentum comes with a default set of keybindings that you can customize in the c
 ## License
 Momentum is licensed under the MIT License. See the LICENSE file for details.
 
-##Screenshot
-![Sample Image](./assets/Naqsh_20231218075141.png)
