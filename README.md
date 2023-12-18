@@ -28,3 +28,5 @@ Momentum comes with a default set of keybindings that you can customize in the c
 ## License
 Momentum is licensed under the MIT License. See the LICENSE file for details.
 
+##Screenshot
+![Sample Image](./assets/Naqsh_20231218075141.png)
